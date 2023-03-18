@@ -1,0 +1,7 @@
+commands:
+  - runs: "./bin/looper -n 20 -d 1s -m one-second"
+    name: "one"
+  - runs: "./bin/looper -n 10 -d 2s -m two-second"
+    name: "two"
+  - runs: "grep"
+    name: "fail"
