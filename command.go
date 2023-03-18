@@ -33,6 +33,14 @@ func ReadConfig(r io.Reader) (*Config, error) {
 	return data, nil
 }
 
+func (c *Command) Label() string {
+	if c.Name != "" {
+		return c.Name
+	}
+
+	return strings.Split(c.Runs, " ")[0]
+}
+
 func (c *Command) Run(ctx context.Context, stdout, stderr io.Writer) error {
 	cmdArgs := strings.Split(c.Runs, " ")
 	c.cmd = exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
@@ -65,12 +73,39 @@ func RunAll(ctx context.Context, maxProcs int64, commands []*Command) error {
 	throttle := semaphore.NewWeighted(maxProcs)
 	errors := make(chan error, len(commands))
 	hasError := false
+	leftpad := 0
+	for _, command := range commands {
+		label := command.Label()
+		if len(label) > leftpad {
+			leftpad = len(label)
+		}
+	}
+	leftpad++
 
 	for _, command := range commands {
 		throttle.Acquire(ctx, 1)
 		go func(cmd *Command) {
-			errors <- cmd.Run(ctx, os.Stdout, os.Stderr)
-			throttle.Release(1)
+			defer throttle.Release(1)
+
+			label := []byte(fmt.Sprintf("%*s | ", leftpad, cmd.Label()))
+
+			stdout, err := NewLogger(os.Stdout, label)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				errors <- err
+				return
+			}
+			stderr, err := NewLogger(os.Stderr, label)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				errors <- err
+				return
+			}
+
+			if err := cmd.Run(ctx, stdout, stderr); err != nil {
+				fmt.Fprintf(stderr, "%v\n", err)
+				errors <- err
+			}
 		}(command)
 	}
 	go func() {
@@ -81,7 +116,6 @@ func RunAll(ctx context.Context, maxProcs int64, commands []*Command) error {
 	}()
 	for err := range errors {
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
 			hasError = true
 		}
 	}
