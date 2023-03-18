@@ -1,8 +1,6 @@
 package smush
 
 import (
-	"bytes"
-	"fmt"
 	"io"
 	"sync"
 
@@ -43,27 +41,27 @@ func NewLogger(w io.Writer, prefix string, colorIndex int) (*Logger, error) {
 }
 
 func (l *Logger) Write(p []byte) (n int, err error) {
-	clone := make([]byte, len(p))
-	copied := copy(clone, p)
-	if copied != len(p) {
-		return 0, fmt.Errorf("copy: %d != %d", copied, len(p))
+	result := []byte{}
+	l.firstLine.Do(func() {
+		result = append(result, l.prefix...)
+	})
+	if l.endedWithNewLine {
+		result = append(result, l.prefix...)
+		l.endedWithNewLine = false
 	}
-
-	parts := bytes.Split(clone, []byte{NewLineByte})
-
-	b := []byte{}
-	for i, part := range parts {
-		if (i == len(parts)-1) && len(part) == 0 {
-			// Skip last part as it seems to always be empty slice.
-			continue
+	for i, b := range p {
+		result = append(result, b)
+		if b == NewLineByte {
+			if i == len(p)-1 {
+				l.endedWithNewLine = true
+			} else {
+				result = append(result, l.prefix...)
+			}
 		}
-		b = append(b, NewLineByte)
-		b = append(b, l.prefix...)
-		b = append(b, part...)
 	}
 
-	n, err = l.w.Write(b)
-	if n == len(b) {
+	n, err = l.w.Write(result)
+	if n == len(result) {
 		// If everything was written, pretend we only wrote as much as asked to preserve cursor.
 		return len(p), err
 	}
