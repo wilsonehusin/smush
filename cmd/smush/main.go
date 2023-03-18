@@ -15,9 +15,17 @@ import (
 var (
 	configPath  = flag.String("c", "smush.yaml", "path to smush configuration file")
 	parallelism = flag.Int64("p", int64(runtime.NumCPU()-1), "maximum parallel commands")
+
+	printVersionOnly = flag.Bool("v", false, "print version and exit")
 )
 
 func main() {
+	flag.Parse()
+	if *printVersionOnly {
+		printVersion()
+		return
+	}
+
 	if err := run(); err != nil {
 		log.Printf("error: %v", err)
 		os.Exit(1)
@@ -38,8 +46,6 @@ func loadConfig() *smush.Config {
 }
 
 func run() error {
-	flag.Parse()
-
 	c := loadConfig()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
