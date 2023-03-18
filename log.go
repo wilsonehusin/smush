@@ -64,6 +64,7 @@ func (l *Logger) Write(p []byte) (n int, err error) {
 
 	n, err = l.w.Write(b)
 	if n == len(b) {
+		// If everything was written, pretend we only wrote as much as asked to preserve cursor.
 		return len(p), err
 	}
 	return n, err
