@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"sync"
+
+	"github.com/fatih/color"
 )
 
 type Logger struct {
@@ -17,15 +19,26 @@ type Logger struct {
 
 const NewLineByte = byte('\n')
 
-func NewLogger(w io.Writer, prefix []byte) (*Logger, error) {
-	dupPrefix := make([]byte, len(prefix))
-	if n := copy(dupPrefix, prefix); n != len(prefix) {
-		return nil, fmt.Errorf("cloning prefix: %d < %d", n, len(prefix))
-	}
+// ANSI text colors excluding:
+// - grays (hard to read in terminal)
+// - red (implies error when it's actually not)
+var colors = []color.Attribute{
+	color.FgGreen,
+	color.FgYellow,
+	color.FgBlue,
+	color.FgMagenta,
+	color.FgCyan,
+}
+
+func NewLogger(w io.Writer, prefix string, colorIndex int) (*Logger, error) {
+	// Foreground colors are defined with Iota 30-38.
+	// See github.com/fatih/color for details.
+	colorizer := color.New(colors[colorIndex%len(colors)], color.Bold)
+	colorized := []byte(colorizer.Sprint(prefix))
 
 	return &Logger{
 		w:      w,
-		prefix: dupPrefix,
+		prefix: colorized,
 	}, nil
 }
 

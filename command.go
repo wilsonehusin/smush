@@ -82,20 +82,20 @@ func RunAll(ctx context.Context, maxProcs int64, commands []*Command) error {
 	}
 	leftpad++
 
-	for _, command := range commands {
+	for i, command := range commands {
 		throttle.Acquire(ctx, 1)
-		go func(cmd *Command) {
+		go func(cmd *Command, i int) {
 			defer throttle.Release(1)
 
-			label := []byte(fmt.Sprintf("%*s | ", leftpad, cmd.Label()))
+			label := fmt.Sprintf("%*s |> ", leftpad, cmd.Label())
 
-			stdout, err := NewLogger(os.Stdout, label)
+			stdout, err := NewLogger(os.Stdout, label, i)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				errors <- err
 				return
 			}
-			stderr, err := NewLogger(os.Stderr, label)
+			stderr, err := NewLogger(os.Stderr, label, i)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				errors <- err
@@ -106,7 +106,7 @@ func RunAll(ctx context.Context, maxProcs int64, commands []*Command) error {
 				fmt.Fprintf(stderr, "%v\n", err)
 				errors <- err
 			}
-		}(command)
+		}(command, i)
 	}
 	go func() {
 		// Ensure all processes have exited by acquiring maximum weight of semaphore...
