@@ -1,0 +1,32 @@
+name: Install smush
+author: wilsonehusin
+description: 'Installs smush and make it availabe in PATH.'
+branding:
+  icon: 'download'
+  color: 'green'
+inputs:
+  version:
+    description: 'Release version to be installed (defaults to most recent)'
+    required: false
+    default: 'latest'
+  arch:
+    description: 'CPU architecture of machine, amd64 (default) or arm64'
+    required: false
+    default: 'amd64'
+  install-dir:
+    description: 'Where to install the binary'
+    required: false
+    default: '$HOME/.smush/bin'
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      run: |
+        mkdir -p "${{ inputs.install-dir }}"
+
+        curl --silent --location --output smush.tar.gz "https://github.com/wilsonehusin/smush/releases/${{ inputs.version }}/download/smush-linux-${{ inputs.arch }}.tar.gz"
+        tar -xvzf smush.tar.gz smush
+        mv smush "${{ inputs.install-dir }}/smush"
+        rm -f smush.tar.gz
+
+        echo "${{ inputs.install-dir }}" >> $GITHUB_PATH
