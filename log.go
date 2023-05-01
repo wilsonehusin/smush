@@ -2,6 +2,7 @@ package smush
 
 import (
 	"io"
+	"os"
 	"sync"
 
 	"github.com/fatih/color"
@@ -16,6 +17,12 @@ type Logger struct {
 }
 
 const NewLineByte = byte('\n')
+
+func init() {
+	if os.Getenv("GITHUB_ACTIONS") != "" {
+		color.NoColor = false
+	}
+}
 
 // ANSI text colors excluding:
 // - grays (hard to read in terminal)
