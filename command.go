@@ -103,9 +103,10 @@ func RunAll(ctx context.Context, maxProcs int64, commands []*Command) error {
 			}
 
 			if err := cmd.Run(ctx, stdout, stderr); err != nil {
-				fmt.Fprintf(stderr, "%v\n", err)
+				fmt.Fprintf(stderr, "%v", err)
 				errors <- err
 			}
+			fmt.Fprintf(stderr, "\n")
 		}(command, i)
 	}
 	go func() {
