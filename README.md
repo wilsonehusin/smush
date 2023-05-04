@@ -66,4 +66,6 @@ gantt
     Linter 1                :after c, 3s
 ```
 
+A longer story of how this project came to be was [posted on Wilson's site](https://husin.dev/posts/20230504055339/).
+
 [^1]: [GitHub Actions rounds credit consumption to the nearest whole minute](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions#:~:text=GitHub%20rounds%20the%20minutes%20and%20partial%20minutes%20each%20job%20uses%20up%20to%20the%20nearest%20whole%20minute.).
