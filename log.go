@@ -27,15 +27,19 @@ func init() {
 // ANSI text colors excluding:
 // - grays (hard to read in terminal)
 // - red (implies error when it's actually not)
+// - green (implies success when it's actually not)
 var colors = []color.Attribute{
-	color.FgGreen,
 	color.FgYellow,
 	color.FgBlue,
 	color.FgMagenta,
 	color.FgCyan,
+	color.FgHiYellow,
+	color.FgHiBlue,
+	color.FgHiMagenta,
+	color.FgHiCyan,
 }
 
-func NewLogger(w io.Writer, prefix string, colorIndex int) (*Logger, error) {
+func NewLogger(w io.Writer, prefix string, colorIndex int) *Logger {
 	// Foreground colors are defined with Iota 30-38.
 	// See github.com/fatih/color for details.
 	colorizer := color.New(colors[colorIndex%len(colors)], color.Bold)
@@ -44,7 +48,7 @@ func NewLogger(w io.Writer, prefix string, colorIndex int) (*Logger, error) {
 	return &Logger{
 		w:      w,
 		prefix: colorized,
-	}, nil
+	}
 }
 
 func (l *Logger) Write(p []byte) (n int, err error) {
