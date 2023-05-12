@@ -80,15 +80,13 @@ func (c *Command) Run(ctx context.Context, stdout, stderr io.Writer) error {
 func RunAll(ctx context.Context, maxProcs int64, commands []*Command) error {
 	throttle := semaphore.NewWeighted(maxProcs)
 	failures := make(chan *Failure, len(commands))
-	leftpad := 0
+	// Set minimum to 3, matching the anchor used for non-program logs.
+	leftpad := 3
 	for _, command := range commands {
 		label := command.Label()
 		if len(label) > leftpad {
 			leftpad = len(label)
 		}
-	}
-	if leftpad < 3 {
-		leftpad = 3
 	}
 	leftpad++
 
