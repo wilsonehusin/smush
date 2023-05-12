@@ -127,7 +127,7 @@ func RunAll(ctx context.Context, maxProcs int64, commands []*Command) error {
 		w:      &report,
 		prefix: []byte(fmt.Sprintf("%*s |> ", leftpad, "***")),
 	}
-	color.New(color.Bold, color.BgBlack, color.FgHiBlack).Fprint(rw, "RUN REPORT")
+	color.New(color.Bold).Fprint(rw, "RUN REPORT")
 	fmt.Fprintf(rw, "\n")
 	var f int
 	for failure := range failures {
