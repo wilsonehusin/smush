@@ -1,7 +1,9 @@
 package smush
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -23,6 +25,12 @@ type Command struct {
 	Runs string `yaml:"runs"`
 
 	cmd *exec.Cmd
+}
+
+type Failure struct {
+	Command *Command
+	Error   error
+	Index   int
 }
 
 func ReadConfig(r io.Reader) (*Config, error) {
@@ -71,9 +79,9 @@ func (c *Command) Run(ctx context.Context, stdout, stderr io.Writer) error {
 
 func RunAll(ctx context.Context, maxProcs int64, commands []*Command) error {
 	throttle := semaphore.NewWeighted(maxProcs)
-	errors := make(chan error, len(commands))
-	hasError := false
-	leftpad := 0
+	failures := make(chan *Failure, len(commands))
+	// Set minimum to 3, matching the anchor used for non-program logs.
+	leftpad := 3
 	for _, command := range commands {
 		label := command.Label()
 		if len(label) > leftpad {
@@ -83,46 +91,98 @@ func RunAll(ctx context.Context, maxProcs int64, commands []*Command) error {
 	leftpad++
 
 	for i, command := range commands {
-		throttle.Acquire(ctx, 1)
+		if err := throttle.Acquire(ctx, 1); err != nil {
+			return fmt.Errorf("acquire semaphore: %w", err)
+		}
+
 		go func(cmd *Command, i int) {
 			defer throttle.Release(1)
 
 			label := fmt.Sprintf("%*s |> ", leftpad, cmd.Label())
-
-			stdout, err := NewLogger(os.Stdout, label, i)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-				errors <- err
-				return
-			}
-			stderr, err := NewLogger(os.Stderr, label, i)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-				errors <- err
-				return
-			}
-
+			stdout := NewLogger(os.Stdout, label, i)
+			stderr := NewLogger(os.Stderr, label, i)
 			if err := cmd.Run(ctx, stdout, stderr); err != nil {
-				fmt.Fprintf(stderr, "%v", err)
-				errors <- err
+				writeNewlineAtEnd(stderr, err)
+				failures <- &Failure{
+					Command: cmd,
+					Error:   err,
+					Index:   i,
+				}
 			}
-			fmt.Fprintf(stderr, "\n")
 		}(command, i)
 	}
 	go func() {
 		// Ensure all processes have exited by acquiring maximum weight of semaphore...
-		throttle.Acquire(context.Background(), maxProcs)
+		_ = throttle.Acquire(context.Background(), maxProcs)
 		// ...before finally closing the channel, so the channel receiver doesn't terminate early.
-		close(errors)
+		close(failures)
 	}()
-	for err := range errors {
-		if err != nil {
-			hasError = true
+
+	// Buffer the report so that all threads can exit first.
+	var report bytes.Buffer
+	report.WriteRune('\n')
+	report.WriteRune('\n')
+
+	rw := &Logger{
+		w:      &report,
+		prefix: []byte(fmt.Sprintf("%*s |> ", leftpad, "***")),
+	}
+	color.New(color.Bold).Fprint(rw, "RUN REPORT")
+	fmt.Fprintf(rw, "\n")
+	var f int
+	for failure := range failures {
+		if failure.Error == nil {
+			continue
+		}
+
+		f++
+		label := fmt.Sprintf("%*s |> ", leftpad, failure.Command.Label())
+		if !errors.Is(failure.Error, context.Canceled) {
+			writeNewlineAtEnd(
+				NewLogger(&report, label, failure.Index),
+				failure.Error)
 		}
 	}
+	total := len(commands)
+	pass := total - f
+	fail := f
+	if f == 0 {
+		fmt.Fprintf(rw, "Ran %d total commands.\n", total)
+		fmt.Fprint(rw, color.New(color.Bold, color.FgGreen).Sprint("PASS"))
+	} else {
+		fmt.Fprintf(rw, "Total: %d, Pass: %d, Fail: %d (%0.1f%%)\n",
+			total,
+			pass,
+			fail,
+			(float64(pass)/float64(total))*100.)
+		fmt.Fprint(rw, color.New(color.Bold, color.FgRed).Sprint("FAIL"))
+	}
 
-	if hasError {
+	fmt.Fprint(&report, "\n")
+	fmt.Fprint(os.Stderr, report.String())
+
+	if f > 0 {
 		return fmt.Errorf("at least one command exited with error")
 	}
 	return nil
+}
+
+func writeNewlineAtEnd(w io.Writer, err error) {
+	if err == nil {
+		return
+	}
+
+	msg := err.Error()
+	if len(msg) == 0 {
+		fmt.Fprint(w, "\n")
+		return
+	}
+
+	switch msg[len(msg)-1] {
+	case '\n', '\r':
+		fmt.Fprint(w, msg)
+		return
+	}
+
+	fmt.Fprintf(w, "%s\n", msg)
 }

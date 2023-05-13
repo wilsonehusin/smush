@@ -19,7 +19,7 @@ func main() {
 
 	duration, err := time.ParseDuration(*durationStr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: parsing duration '%s': %v", durationStr, err)
+		fmt.Fprintf(os.Stderr, "error: parsing duration '%s': %v", *durationStr, err)
 		os.Exit(1)
 	}
 
